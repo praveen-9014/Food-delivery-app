@@ -12,6 +12,10 @@
   ],
   "routes": [
     {
+      "src": "/api/(.*)",
+      "dest": "https://food-delivery-app-0mgx.onrender.com/api/$1"
+    },
+    {
       "src": "/static/(.*)",
       "dest": "/static/$1"
     },
@@ -21,6 +25,6 @@
     }
   ],
   "env": {
-    "REACT_APP_API_URL": "https://food-delivery-app-0mgx.onrender.com"
+    "REACT_APP_API_URL": ""
   }
 }
