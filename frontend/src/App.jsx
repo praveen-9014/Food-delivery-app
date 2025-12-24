@@ -135,7 +135,19 @@ function App() {
   };
 
   // Auth functions
-  const fetchUserInfo = async () => {
+  const logout = useCallback(() => {
+    localStorage.removeItem('token');
+    setToken(null);
+    setUser(null);
+    setOrderHistory([]);
+    setCart([]);
+    setOrder(null);
+    setSelectedRestaurant(null);
+    setMenu([]);
+    alert('Logged out successfully');
+  }, []);
+
+  const fetchUserInfo = useCallback(async () => {
     if (!token) return;
     try {
       const res = await fetch('/api/auth/me', {
@@ -154,7 +166,7 @@ function App() {
       console.error('Failed to fetch user info:', error);
       logout();
     }
-  };
+  }, [token, logout]);
 
   const handleSignup = async (e) => {
     e.preventDefault();
@@ -228,18 +240,6 @@ function App() {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
-    setUser(null);
-    setOrderHistory([]);
-    setCart([]);
-    setOrder(null);
-    setSelectedRestaurant(null);
-    setMenu([]);
-    alert('Logged out successfully');
-  };
-
   const fetchOrderHistory = useCallback(async () => {
     if (!token) return;
     try {
@@ -257,7 +257,7 @@ function App() {
     } catch (error) {
       console.error('Failed to fetch order history:', error);
     }
-  }, [token]);
+  }, [token, logout]);
 
   const fetchOrderStatus = useCallback(async (orderId) => {
     if (!token) return;
@@ -276,7 +276,7 @@ function App() {
     } catch (error) {
       console.error('Failed to fetch order status:', error);
     }
-  }, [token]);
+  }, [token, logout]);
 
   const addToCart = (item) => {
     const existingItem = cart.find(cartItem => cartItem.itemId === item.itemId);
