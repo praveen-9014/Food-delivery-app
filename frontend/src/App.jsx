@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-
-// API base URL - use environment variable for production, fallback to relative for development
-const API_BASE_URL = process.env.REACT_APP_API_URL || '';
+import { API_BASE_URL } from './config';
 
 function App() {
   // Auth state
