@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 function App() {
   // Auth state
@@ -45,8 +45,7 @@ function App() {
     if (user && token) {
       fetchOrderHistory();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, token]);
+  }, [user, token, fetchOrderHistory]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -60,11 +59,10 @@ function App() {
     if (viewOrderId) {
       const interval = setInterval(() => {
         fetchOrderStatus(viewOrderId);
-      }, 5000);
+      }, 5000); // Check every 5 seconds
       return () => clearInterval(interval);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewOrderId]);
+  }, [viewOrderId, fetchOrderStatus]);
 
   const fetchRestaurants = async () => {
     setLoading(true);
@@ -83,6 +81,7 @@ function App() {
       console.log('Received data:', data);
       
       if (data && data.restaurants) {
+        // Normalize ids in case backend or cache differs
         const normalized = data.restaurants.map((r, idx) => {
           const id = r.restaurantId ?? r.id ?? r._id ?? idx + 1;
           return { ...r, restaurantId: id, id };
@@ -96,7 +95,7 @@ function App() {
     } catch (error) {
       console.error('Failed to fetch restaurants:', error);
       setRestaurants([]);
-      alert('Failed to load restaurants.');
+      alert('Failed to load restaurants. Make sure backend services are running on ports 4000 and 4001.');
     } finally {
       setLoading(false);
     }
@@ -135,7 +134,8 @@ function App() {
     }
   };
 
-  const logout = () => {
+  // Auth functions
+  const logout = useCallback(() => {
     localStorage.removeItem('token');
     setToken(null);
     setUser(null);
@@ -145,9 +145,9 @@ function App() {
     setSelectedRestaurant(null);
     setMenu([]);
     alert('Logged out successfully');
-  };
+  }, []);
 
-  const fetchUserInfo = async () => {
+  const fetchUserInfo = useCallback(async () => {
     if (!token) return;
     try {
       const res = await fetch('/api/auth/me', {
@@ -159,13 +159,14 @@ function App() {
         const data = await res.json();
         setUser(data.user);
       } else {
+        // Token invalid, logout
         logout();
       }
     } catch (error) {
       console.error('Failed to fetch user info:', error);
       logout();
     }
-  };
+  }, [token, logout]);
 
   const handleSignup = async (e) => {
     e.preventDefault();
@@ -239,7 +240,7 @@ function App() {
     }
   };
 
-  const fetchOrderHistory = async () => {
+  const fetchOrderHistory = useCallback(async () => {
     if (!token) return;
     try {
       const res = await fetch('/api/orders', {
@@ -256,9 +257,9 @@ function App() {
     } catch (error) {
       console.error('Failed to fetch order history:', error);
     }
-  };
+  }, [token, logout]);
 
-  const fetchOrderStatus = async (orderId) => {
+  const fetchOrderStatus = useCallback(async (orderId) => {
     if (!token) return;
     try {
       const res = await fetch(`/api/orders/${orderId}`, {
@@ -275,7 +276,7 @@ function App() {
     } catch (error) {
       console.error('Failed to fetch order status:', error);
     }
-  };
+  }, [token, logout]);
 
   const addToCart = (item) => {
     const existingItem = cart.find(cartItem => cartItem.itemId === item.itemId);
@@ -324,6 +325,13 @@ function App() {
     
     setLoading(true);
     try {
+      console.log('Placing order...', {
+        restaurantId: selectedRestaurant,
+        items: cart,
+        total: getTotal(),
+        deliveryAddress: deliveryAddress,
+      });
+
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: { 
@@ -338,6 +346,8 @@ function App() {
         })
       });
 
+      console.log('Order response status:', res.status);
+
       if (!res.ok) {
         if (res.status === 401) {
           logout();
@@ -348,6 +358,7 @@ function App() {
       }
 
       const data = await res.json();
+      console.log('Order placed successfully:', data);
       
       setOrder(data);
       setServiceInfo(data.service);
@@ -404,20 +415,22 @@ function App() {
                 <span className="px-4 py-2 text-gray-700">
                   Welcome, {user.name}!
                 </span>
-                <button
-                  onClick={() => {
-                    setShowOrderHistory(!showOrderHistory);
-                    setViewOrderId(null);
-                    setTrackingOrder(null);
-                    setSearchQuery('');
-                    if (!showOrderHistory) {
-                      fetchRestaurants();
-                    }
-                  }}
-                  className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
-                >
-                  {showOrderHistory ? 'Back to Restaurants' : 'Order History'}
-                </button>
+                {user && (
+                  <button
+                    onClick={() => {
+                      setShowOrderHistory(!showOrderHistory);
+                      setViewOrderId(null);
+                      setTrackingOrder(null);
+                      setSearchQuery('');
+                      if (!showOrderHistory) {
+                        fetchRestaurants();
+                      }
+                    }}
+                    className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
+                  >
+                    {showOrderHistory ? 'Back to Restaurants' : 'Order History'}
+                  </button>
+                )}
                 <button
                   onClick={logout}
                   className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
@@ -599,22 +612,165 @@ function App() {
           </div>
         )}
 
+        {/* Order Tracking View */}
+        {viewOrderId && trackingOrder && (
+          <div className="mb-6 p-6 bg-white rounded-lg shadow-lg">
+            <button
+              onClick={() => {
+                setViewOrderId(null);
+                setTrackingOrder(null);
+              }}
+              className="mb-4 text-blue-600 hover:text-blue-800 font-semibold"
+            >
+              ← Back
+            </button>
+            <h2 className="text-2xl font-bold mb-4">Order #{trackingOrder.orderId}</h2>
+            <div className={`inline-block px-4 py-2 rounded-lg mb-4 ${getStatusColor(trackingOrder.status)}`}>
+              {getStatusText(trackingOrder.status)}
+            </div>
+            <div className="space-y-2 mb-4">
+              <p><strong>Restaurant:</strong> {trackingOrder.restaurantName}</p>
+              <p><strong>Delivery Address:</strong> {trackingOrder.deliveryAddress}</p>
+              <p><strong>Total:</strong> ₹{trackingOrder.total}</p>
+              <p><strong>Estimated Delivery:</strong> {new Date(trackingOrder.estimatedDelivery).toLocaleTimeString()}</p>
+            </div>
+            <div className="border-t pt-4">
+              <h3 className="font-semibold mb-2">Items:</h3>
+              {trackingOrder.items.map((item, idx) => (
+                <div key={idx} className="flex justify-between">
+                  <span>{item.name} {item.quantity > 1 && `x${item.quantity}`}</span>
+                  <span>₹{(item.price * (item.quantity || 1)).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Order Confirmation */}
+        {order && !viewOrderId && (
+          <div className="mb-6 p-6 bg-green-50 border border-green-200 rounded-lg">
+            <h2 className="text-2xl font-semibold text-green-800 mb-2">✅ Order Confirmed!</h2>
+            <p className="text-green-700 mb-2">Order ID: <strong>#{order.orderId}</strong></p>
+            <p className="text-green-700 mb-2">Restaurant: {order.restaurantName}</p>
+            <p className="text-green-700 mb-2">Total: <strong>₹{order.total}</strong></p>
+            <p className="text-green-700 mb-4">Status: <span className={`px-2 py-1 rounded ${getStatusColor(order.status)}`}>{getStatusText(order.status)}</span></p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setViewOrderId(order.orderId);
+                  fetchOrderStatus(order.orderId);
+                }}
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              >
+                Track Order
+              </button>
+              <button
+                onClick={() => {
+                  setOrder(null);
+                  goBack();
+                }}
+                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+              >
+                Place New Order
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Order History View */}
+        {showOrderHistory && !viewOrderId && (
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold mb-4">Order History</h2>
+            {!user ? (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <p className="text-yellow-800">Please login to view your order history.</p>
+                <button
+                  onClick={() => setShowLogin(true)}
+                  className="mt-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                >
+                  Login
+                </button>
+              </div>
+            ) : orderHistory.length === 0 ? (
+              <p className="text-gray-500">No orders yet</p>
+            ) : (
+              <div className="space-y-4">
+                {orderHistory.map((order) => (
+                  <div key={order.orderId} className="bg-white rounded-lg shadow p-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-semibold">Order #{order.orderId}</p>
+                        <p className="text-gray-600">{order.restaurantName}</p>
+                        <p className="text-gray-600">{new Date(order.createdAt).toLocaleString()}</p>
+                        <p className="text-lg font-bold text-green-600">₹{order.total}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className={`px-3 py-1 rounded-lg ${getStatusColor(order.status)}`}>
+                          {getStatusText(order.status)}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setViewOrderId(order.orderId);
+                            fetchOrderStatus(order.orderId);
+                          }}
+                          className="mt-2 block w-full bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                        >
+                          Track
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Restaurant List View */}
         {!selectedRestaurant && !order && !showOrderHistory && (
           <div>
             <div className="mb-6">
               <input
                 type="text"
-                placeholder="Search restaurants by name or cuisine..."
+                placeholder="Search restaurants by name or cuisine (e.g., Pizza, Italian, Burger)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              {searchQuery && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    fetchRestaurants();
+                  }}
+                  className="mt-2 text-blue-600 hover:text-blue-800 text-sm"
+                >
+                  Clear search
+                </button>
+              )}
             </div>
             {loading ? (
               <p className="text-gray-500">Loading restaurants...</p>
             ) : restaurants.length === 0 ? (
-              <p className="text-gray-500">No restaurants found</p>
+              <div className="text-center py-8">
+                <p className="text-gray-500 mb-2">No restaurants found</p>
+                {searchQuery && (
+                  <div>
+                    <p className="text-gray-400 text-sm mb-4">Try searching for:</p>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      <span className="px-3 py-1 bg-gray-200 rounded-full text-sm">Pizza</span>
+                      <span className="px-3 py-1 bg-gray-200 rounded-full text-sm">Burger</span>
+                      <span className="px-3 py-1 bg-gray-200 rounded-full text-sm">Sushi</span>
+                      <span className="px-3 py-1 bg-gray-200 rounded-full text-sm">Italian</span>
+                      <span className="px-3 py-1 bg-gray-200 rounded-full text-sm">American</span>
+                      <span className="px-3 py-1 bg-gray-200 rounded-full text-sm">Japanese</span>
+                      <span className="px-3 py-1 bg-gray-200 rounded-full text-sm">Mexican</span>
+                      <span className="px-3 py-1 bg-gray-200 rounded-full text-sm">Indian</span>
+                      <span className="px-3 py-1 bg-gray-200 rounded-full text-sm">Chinese</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {restaurants.map((restaurant, idx) => {
