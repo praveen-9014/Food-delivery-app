@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 function App() {
   // Auth state
@@ -45,7 +45,7 @@ function App() {
     if (user && token) {
       fetchOrderHistory();
     }
-  }, [user, token]);
+  }, [user, token, fetchOrderHistory]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -62,7 +62,7 @@ function App() {
       }, 5000); // Check every 5 seconds
       return () => clearInterval(interval);
     }
-  }, [viewOrderId]);
+  }, [viewOrderId, fetchOrderStatus]);
 
   const fetchRestaurants = async () => {
     setLoading(true);
@@ -240,7 +240,7 @@ function App() {
     alert('Logged out successfully');
   };
 
-  const fetchOrderHistory = async () => {
+  const fetchOrderHistory = useCallback(async () => {
     if (!token) return;
     try {
       const res = await fetch('/api/orders', {
@@ -257,9 +257,9 @@ function App() {
     } catch (error) {
       console.error('Failed to fetch order history:', error);
     }
-  };
+  }, [token]);
 
-  const fetchOrderStatus = async (orderId) => {
+  const fetchOrderStatus = useCallback(async (orderId) => {
     if (!token) return;
     try {
       const res = await fetch(`/api/orders/${orderId}`, {
@@ -276,7 +276,7 @@ function App() {
     } catch (error) {
       console.error('Failed to fetch order status:', error);
     }
-  };
+  }, [token]);
 
   const addToCart = (item) => {
     const existingItem = cart.find(cartItem => cartItem.itemId === item.itemId);
