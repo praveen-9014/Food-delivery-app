@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 
+// API base URL - use environment variable for production, fallback to relative for development
+const API_BASE_URL = process.env.REACT_APP_API_URL || '';
+
 function App() {
   // Auth state
   const [user, setUser] = useState(null);
@@ -70,7 +73,7 @@ function App() {
     setLoading(true);
     try {
       const query = searchQuery ? `?search=${encodeURIComponent(searchQuery)}` : '';
-      const url = `/api/restaurants${query}`;
+      const url = `${API_BASE_URL}/api/restaurants${query}`;
       console.log('Fetching restaurants from:', url);
       
       const res = await fetch(url);
@@ -114,7 +117,7 @@ function App() {
 
     setLoading(true);
     try {
-      const res = await fetch(`/api/restaurants/${idNum}/menu`);
+      const res = await fetch(`${API_BASE_URL}/api/restaurants/${idNum}/menu`);
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || `Failed to load menu (status ${res.status})`);
@@ -150,7 +153,7 @@ function App() {
   const fetchUserInfo = async () => {
     if (!token) return;
     try {
-      const res = await fetch('/api/auth/me', {
+      const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -171,7 +174,7 @@ function App() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/signup', {
+      const res = await fetch(`${API_BASE_URL}/api/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -209,7 +212,7 @@ function App() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -242,7 +245,7 @@ function App() {
   const fetchOrderHistory = async () => {
     if (!token) return;
     try {
-      const res = await fetch('/api/orders', {
+      const res = await fetch(`${API_BASE_URL}/api/orders`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -261,7 +264,7 @@ function App() {
   const fetchOrderStatus = async (orderId) => {
     if (!token) return;
     try {
-      const res = await fetch(`/api/orders/${orderId}`, {
+      const res = await fetch(`${API_BASE_URL}/api/orders/${orderId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -324,7 +327,7 @@ function App() {
     
     setLoading(true);
     try {
-      const res = await fetch('/api/orders', {
+      const res = await fetch(`${API_BASE_URL}/api/orders`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
